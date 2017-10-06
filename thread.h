@@ -90,7 +90,7 @@ struct thread
     int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
 
-    int ticks_to_sleep = 0;               /* How many ticks to be blocked */ //CHANGED Change so assigned elsewhere
+    int ticks_to_sleep;// = 0;               /* How many ticks to be blocked */ //CHANGED Change so assigned elsewhere
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */

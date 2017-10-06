@@ -175,9 +175,9 @@ timer_interrupt (struct intr_frame *args UNUSED)
   ticks++;
   thread_tick ();
 
-  //Turn interrupts off for threads_foreach
+  //Turn interrupts off for thread_foreach
   enum intr_level old_level = intr_disable ();
-  threads_foreach(thread_decrease_sleep, args); //CHANGED
+  thread_foreach(thread_decrease_sleep, args); //CHANGED
   //Turn interrupts on
   intr_set_level (old_level);
 

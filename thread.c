@@ -61,6 +61,8 @@ bool thread_mlfqs;
 
 static void kernel_thread (thread_func *, void *aux);
 
+void thread_decrease_sleep (struct thread *t, void *aux);
+
 static void idle (void *aux UNUSED);
 static struct thread *running_thread (void);
 static struct thread *next_thread_to_run (void);

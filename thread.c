@@ -392,6 +392,7 @@ void thread_set_sleep (int time_sleep) { //CHANGED
     thread_current()->ticks_to_sleep = time_sleep;
     thread_block ();
     intr_set_level (old_level);
+   }
 }
 
 

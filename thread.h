@@ -141,7 +141,7 @@ int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
 
-int thread_decrease_sleep (struct thread *t, void *aux); //CHANGED
+void thread_decrease_sleep (struct thread *t, void *aux); //CHANGED
 void thread_set_sleep (int); //CHANGED
 
 #endif /* threads/thread.h */

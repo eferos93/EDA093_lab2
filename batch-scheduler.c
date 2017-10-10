@@ -6,6 +6,7 @@
 #include "threads/malloc.h"
 #include "threads/synch.h"
 #include "threads/thread.h"
+#include "devices/timer.h"
 #include "lib/random.h" //generate random numbers
 
 #define BUS_CAPACITY 3
@@ -24,6 +25,8 @@ typedef struct {
 } task_t;
 
 struct semaphore slotsFree;
+struct semaphore mutex;
+int current_direction;
 
 void batchScheduler(unsigned int num_tasks_send, unsigned int num_task_receive,
         unsigned int num_priority_send, unsigned int num_priority_receive);
@@ -47,7 +50,8 @@ void init_bus(void){
     random_init((unsigned int)123456789); 
     
     //msg("NOT IMPLEMENTED");
-    sema_init(&slotsFree, 3); //CHANGED
+    sema_init(&slotsFree, BUS_CAPACITY); //CHANGED
+    current_direction = 0;
     /* FIXME implement */
 
 }
@@ -103,23 +107,30 @@ void oneTask(task_t task) {
 
 
 /* task tries to get slot on the bus subsystem */
-void getSlot(task_t task) //CHANGED
+void getSlot(task_t task) 
 {
 
     //msg("NOT IMPLEMENTED");
     /* FIXME implement */
-    sema_down(&slotsFree);
+    //sema_ //Check if right direction first?
+    if (task.priority == 1) {
+            //Do smth
+    }
+    sema_down(&slotsFree); //CHANGED
 }
 
 /* task processes data on the bus send/receive */
 void transferData(task_t task) 
 {
-    msg("NOT IMPLEMENTED");
+    //msg("NOT IMPLEMENTED");
+    printf("Enters bus\n"); //CHANGED
+    timer_sleep(random_ulong() % 50); //Sleep for 0 to 49 ticks
+    printf("Exits bus\n");
     /* FIXME implement */
 }
 
 /* task releases the slot */
-void leaveSlot(task_t task)  //CHANGED
+void leaveSlot(task_t task)
 {
     //msg("NOT IMPLEMENTED");
     /* FIXME implement */

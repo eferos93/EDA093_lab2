@@ -24,10 +24,13 @@ typedef struct {
 	int priority;
 } task_t;
 
-struct semaphore slotsFree;
-struct semaphore mutex;
-int current_direction;
+//struct semaphore slotsFree;
+struct condition waitingToGo[2][2];
+struct lock block;
+int currentDirection; //either 0 or 1
+int slotsFree;
 
+void init_bus(void);
 void batchScheduler(unsigned int num_tasks_send, unsigned int num_task_receive,
         unsigned int num_priority_send, unsigned int num_priority_receive);
 
@@ -44,16 +47,18 @@ void oneTask(task_t task);/*Task requires to use the bus and executes methods be
 
 
 
-/* initializes semaphores */ 
-void init_bus(void){ 
- 
-    random_init((unsigned int)123456789); 
-    
-    //msg("NOT IMPLEMENTED");
-    sema_init(&slotsFree, BUS_CAPACITY); //CHANGED
-    current_direction = 0;
-    /* FIXME implement */
+/* initializes semaphores */
+void init_bus(void){
 
+        random_init((unsigned int)123456789);
+        slotsFree=BUS_CAPACITY;
+        int i;
+        int j;
+                for (i=0; i<2; i++)
+                        for (j=0; j<2; j++)
+                                cond_init(&waitingToGo[i][j]);
+                lock_init(&block);
+                currentDirection=SENDER;
 }
 
 /*
@@ -61,33 +66,35 @@ void init_bus(void){
  *  sending data to the accelerator and num_task_receive + num_priority_receive tasks
  *  reading data/results from the accelerator.
  *
- *  Every task is represented by its own thread. 
+ *  Every task is represented by its own thread.
  *  Task requires and gets slot on bus system (1)
  *  process data and the bus (2)
  *  Leave the bus (3).
  */
 
-void batchScheduler(unsigned int num_tasks_send, unsigned int num_task_receive,
+void batchScheduler(unsigned int num_tasks_send, unsigned int num_tasks_receive,
         unsigned int num_priority_send, unsigned int num_priority_receive)
 {
-    char nameArr[7] = "Thread";
+        //int j = 0;
+        char nameArr[7] = "Thread";
         const char *name = nameArr;
-        for (int i = 0; i < num_priority_send; i++){
+        unsigned int i;
+        for (i = 0; i < num_priority_send; i++){
                 thread_create(name, 0, senderPriorityTask, NULL);
         }
-        for (int i = 0; i < num_priority_receive; i++){
+        for (i = 0; i < num_priority_receive; i++){
                 thread_create(name, 0, receiverPriorityTask, NULL);
 
         }
-        for (int i = 0; i < num_task_receive; i++){
+        for (i = 0; i < num_tasks_receive; i++){
                 thread_create(name, 0, receiverTask, NULL);
 
         }
-        for (int i = 0; i < num_task_send; i++){
+        for (i = 0; i < num_tasks_send; i++){
                 thread_create(name, 0, senderTask, NULL);
 
         }
-    /* FIXME implement */ //CHANGED
+
 }
 
 /* Normal task,  sending data to the accelerator */
@@ -123,32 +130,40 @@ void oneTask(task_t task) {
 
 
 /* task tries to get slot on the bus subsystem */
-void getSlot(task_t task) 
+void getSlot(task_t task)
 {
-
-    //msg("NOT IMPLEMENTED");
-    /* FIXME implement */
-    //sema_ //Check if right direction first?
-    if (task.priority == 1) {
-            //Do smth
-    }
-    sema_down(&slotsFree); //CHANGED
+		lock_acquire(&block);
+		while(slotsFree==0 || (slotsFree>0 && currentDirection!= task.direction)) {
+			cond_wait(&waitingToGo[task.direction][task.priority], &block);
+		}
+		while(task.priority==NORMAL && !list_empty(&waitingToGo[task.direction][HIGH].waiters)){
+			cond_wait(&waitingToGo[task.direction][task.priority], &block);
+		}
+    slotsFree--;
+		currentDirection=task.direction;
+		lock_release(&block);
 }
 
 /* task processes data on the bus send/receive */
-void transferData(task_t task) 
+void transferData(task_t task)
 {
-    //msg("NOT IMPLEMENTED");
-    printf("Enters bus\n"); //CHANGED
-    timer_sleep(random_ulong() % 50); //Sleep for 0 to 49 ticks
-    printf("Exits bus\n");
-    /* FIXME implement */
+        printf("Enters bus\n");
+        timer_sleep(random_ulong() % 50);
+	printf("Exits bus\n");
 }
 
 /* task releases the slot */
-void leaveSlot(task_t task)
+void leaveSlot(task_t task)  //CHANGED
 {
-    //msg("NOT IMPLEMENTED");
-    /* FIXME implement */
-    sema_up(&slotsFree);//CHANGED
+        lock_acquire(&block);
+                        slotsFree++;
+                        if(!list_empty(&(waitingToGo[currentDirection][HIGH].waiters))) {
+                                cond_signal(&waitingToGo[currentDirection][HIGH], &block);
+                        } else if(!list_empty(&waitingToGo[currentDirection][NORMAL].waiters)) {
+                                cond_signal(&waitingToGo[currentDirection][NORMAL], &block);
+                        } else if (slotsFree==BUS_CAPACITY) {
+                                cond_broadcast(&waitingToGo[1-currentDirection][HIGH], &block);
+                                cond_broadcast(&waitingToGo[1-currentDirection][NORMAL], &block);
+                        }
+                        lock_release(&block);
 }

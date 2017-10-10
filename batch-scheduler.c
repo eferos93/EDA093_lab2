@@ -70,7 +70,23 @@ void init_bus(void){
 void batchScheduler(unsigned int num_tasks_send, unsigned int num_task_receive,
         unsigned int num_priority_send, unsigned int num_priority_receive)
 {
-    msg("NOT IMPLEMENTED");
+    char nameArr[7] = "Thread";
+        const char *name = nameArr;
+        for (int i = 0; i < num_priority_send; i++){
+                thread_create(name, 0, senderPriorityTask, NULL);
+        }
+        for (int i = 0; i < num_priority_receive; i++){
+                thread_create(name, 0, receiverPriorityTask, NULL);
+
+        }
+        for (int i = 0; i < num_task_receive; i++){
+                thread_create(name, 0, receiverTask, NULL);
+
+        }
+        for (int i = 0; i < num_task_send; i++){
+                thread_create(name, 0, senderTask, NULL);
+
+        }
     /* FIXME implement */ //CHANGED
 }
 

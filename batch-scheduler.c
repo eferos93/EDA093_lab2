@@ -9,6 +9,7 @@
 #include "devices/timer.h"
 #include "lib/random.h" //generate random numbers
 
+
 #define BUS_CAPACITY 3
 #define SENDER 0
 #define RECEIVER 1
@@ -79,6 +80,9 @@ void batchScheduler(unsigned int num_tasks_send, unsigned int num_tasks_receive,
         char nameArr[7] = "Thread";
         const char *name = nameArr;
         unsigned int i;
+        // if (num_priority_send == 0 && num_task_send == 0) { //If no tasks to send
+        //         currentDirection = RECEIVER;
+        // }
         for (i = 0; i < num_priority_send; i++){
                 thread_create(name, 0, senderPriorityTask, NULL);
         }
@@ -94,7 +98,6 @@ void batchScheduler(unsigned int num_tasks_send, unsigned int num_tasks_receive,
                 thread_create(name, 0, senderTask, NULL);
 
         }
-
 }
 
 /* Normal task,  sending data to the accelerator */
@@ -132,38 +135,74 @@ void oneTask(task_t task) {
 /* task tries to get slot on the bus subsystem */
 void getSlot(task_t task)
 {
-		lock_acquire(&block);
-		while(slotsFree==0 || (slotsFree>0 && currentDirection!= task.direction)) {
-			cond_wait(&waitingToGo[task.direction][task.priority], &block);
-		}
-		while(task.priority==NORMAL && !list_empty(&waitingToGo[task.direction][HIGH].waiters)){
-			cond_wait(&waitingToGo[task.direction][task.priority], &block);
-		}
-    slotsFree--;
-		currentDirection=task.direction;
-		lock_release(&block);
+        lock_acquire(&block); //Aquire block, or sleep until can be aquired
+
+        //Wait: 
+        // -IF all slots occupied OR
+        // -IF there are free slots AND
+        // -- IF task has normal priority AND highprioritylists are not empty
+        // -- OR wrong direction
+        //Wait again if direction is wrong (when high priority tasks wait for traffic to empty)
+
+        while( slotsFree == 0 || (slotsFree > 0 && (task.priority == NORMAL && (!list_empty(&waitingToGo[task.direction][HIGH].waiters) || !list_empty(&waitingToGo[1-task.direction][HIGH].waiters))) 
+                || currentDirection != task.direction) ) { //If no free slots or the direction is different from your own -> wait 
+            //lock_acquire(&block); //Aquire block, or sleep until can be aquired
+            cond_wait(&waitingToGo[task.direction][task.priority], &block); //Release lock and wait until signalled
+        }
+
+        // while(slotsFree==0 || (slotsFree>0 && currentDirection != task.direction)) { //If no free slots or the direction is different from your own -> wait 
+        //     //lock_acquire(&block); //Aquire block, or sleep until can be aquired
+        //     cond_wait(&waitingToGo[task.direction][task.priority], &block); //Release lock and wait until signalled
+        // }
+        // while(task.priority==NORMAL && !list_empty(&waitingToGo[task.direction][HIGH].waiters)){ //Priority task goes first
+        //     cond_wait(&waitingToGo[task.direction][task.priority], &block);
+        // }
+        slotsFree--;
+
+	currentDirection=task.direction;
+	lock_release(&block);
 }
 
 /* task processes data on the bus send/receive */
 void transferData(task_t task)
 {
-        printf("Enters bus\n");
-        timer_sleep(random_ulong() % 50);
-	printf("Exits bus\n");
+    printf("Enters bus, priority: %d, direction: %d\n", task.priority, task.direction);
+    timer_sleep(random_ulong() % 20);
+    //printf("exits");
+    printf("Exits buspriority: %d, direction: %d\n", task.priority, task.direction);
 }
 
 /* task releases the slot */
 void leaveSlot(task_t task)  //CHANGED
 {
         lock_acquire(&block);
-                        slotsFree++;
-                        if(!list_empty(&(waitingToGo[currentDirection][HIGH].waiters))) {
-                                cond_signal(&waitingToGo[currentDirection][HIGH], &block);
-                        } else if(!list_empty(&waitingToGo[currentDirection][NORMAL].waiters)) {
-                                cond_signal(&waitingToGo[currentDirection][NORMAL], &block);
-                        } else if (slotsFree==BUS_CAPACITY) {
-                                cond_broadcast(&waitingToGo[1-currentDirection][HIGH], &block);
-                                cond_broadcast(&waitingToGo[1-currentDirection][NORMAL], &block);
-                        }
-                        lock_release(&block);
+        slotsFree++;
+        // if(!list_empty(&(waitingToGo[currentDirection][HIGH].waiters))) {
+        //         cond_signal(&waitingToGo[currentDirection][HIGH], &block);
+        // } else if(!list_empty(&waitingToGo[currentDirection][NORMAL].waiters)) {
+        //         cond_signal(&waitingToGo[currentDirection][NORMAL], &block);
+        // } else if (slotsFree==BUS_CAPACITY) {
+        //         cond_broadcast(&waitingToGo[1-currentDirection][HIGH], &block);
+        //         cond_broadcast(&waitingToGo[1-currentDirection][NORMAL], &block);
+        // }
+        if(!list_empty(&(waitingToGo[currentDirection][HIGH].waiters))) { //Any priority tasks in the current direction waiting?
+                cond_signal(&waitingToGo[currentDirection][HIGH], &block); //Signal one
+        } else if(!list_empty(&waitingToGo[1-currentDirection][HIGH].waiters) && fregerhretjryjtk) { //If priority task waiting to go in the other direction
+                if (slotsFree==BUS_CAPACITY) {
+                        cond_broadcast(&waitingToGo[1-currentDirection][HIGH], &block);
+                }
+                //currentDirection=1-task.direction;
+        } else if (!list_empty(&waitingToGo[currentDirection][NORMAL].waiters)) {
+
+                cond_signal(&waitingToGo[currentDirection][NORMAL], &block);
+
+        } else if (!list_empty(&waitingToGo[1-currentDirection][NORMAL].waiters)) {
+                
+                if (slotsFree==BUS_CAPACITY) {
+                        cond_broadcast(&waitingToGo[1-currentDirection][NORMAL], &block);
+                }
+        }
+        
+        lock_release(&block);
 }
+

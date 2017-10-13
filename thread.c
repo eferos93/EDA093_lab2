@@ -371,29 +371,30 @@ thread_get_load_avg (void)
   return 0;
 }
 
+/*Decrease ticks_to_sleep for all sleeping threads, wake up  and put to ready queue if decreased to 0*/
 void thread_decrease_sleep (struct thread *t, void *aux) { //CHANGED
   if (t->status == THREAD_BLOCKED && t->ticks_to_sleep > 0) { //If sleeping
-    //printf("TTS: %d\n",t->ticks_to_sleep);
-    ASSERT (t->ticks_to_sleep > 0);
-    t->ticks_to_sleep--;
-    if (t->ticks_to_sleep == 0) { //If ready to be waken up and put on ready queue
+
+    //ASSERT (t->ticks_to_sleep > 0);
+    t->ticks_to_sleep--; //Reduce ticks_to_sleep by 1
+
+    if (t->ticks_to_sleep == 0) { //If ready to be woken up and put on ready queue
+
         enum intr_level old_level = intr_disable ();
         thread_unblock(t);
-        //thread_yield();
         intr_set_level (old_level);
+
       }
-    //return t->ticks_to_sleep;
   }
 }
 void thread_set_sleep (int time_sleep) { //CHANGED
-    //intr_disable (); //Needed?
-    //ASSERT not idle?
-    if (time_sleep > 0) { //If to be set asleep
-    //ASSERT (time_sleep > 0);
-    enum intr_level old_level = intr_disable ();
-    thread_current()->ticks_to_sleep = time_sleep;
-    thread_block ();
-    intr_set_level (old_level);
+
+    if (time_sleep > 0) { //If to be set asleep: set ticks_to_sleep and block thread 
+
+      enum intr_level old_level = intr_disable ();
+      thread_current()->ticks_to_sleep = time_sleep;
+      thread_block (); 
+      intr_set_level (old_level);
    }
 }
 

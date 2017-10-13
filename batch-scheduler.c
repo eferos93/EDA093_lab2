@@ -7,7 +7,7 @@
 #include "threads/synch.h"
 #include "threads/thread.h"
 #include "devices/timer.h"
-#include "lib/random.h" //generate random numbers
+#include "lib/random.h" //to generate random numbers
 
 
 #define BUS_CAPACITY 3
@@ -26,10 +26,10 @@ typedef struct {
 } task_t;
 
 //struct semaphore slotsFree;
-struct condition waitingToGo[2][2];
+struct condition waitingToGo[2][2]; //Condition matrix for all task types
 struct lock block;
 int currentDirection; //either 0 or 1
-int slotsFree;
+int slotsFree; // 0 <= slotsFree <= BUS_CAPACITY
 
 void init_bus(void);
 void batchScheduler(unsigned int num_tasks_send, unsigned int num_task_receive,
@@ -55,11 +55,11 @@ void init_bus(void){
         slotsFree=BUS_CAPACITY;
         int i;
         int j;
-                for (i=0; i<2; i++)
-                        for (j=0; j<2; j++)
-                                cond_init(&waitingToGo[i][j]);
-                lock_init(&block);
-                currentDirection=SENDER;
+        for (i=0; i<2; i++)
+                for (j=0; j<2; j++)
+                        cond_init(&waitingToGo[i][j]);
+        lock_init(&block); //Initiate lock
+        currentDirection=SENDER;
 }
 
 /*
@@ -76,21 +76,14 @@ void init_bus(void){
 void batchScheduler(unsigned int num_tasks_send, unsigned int num_tasks_receive,
         unsigned int num_priority_send, unsigned int num_priority_receive)
 {
-        //int j = 0;
         char nameArr[7] = "Thread";
-        const char *name = nameArr;
-        unsigned int i;
+        const char *name = nameArr; //Name of all threads
+        unsigned int i; //Used in loops below
 
-        //old_level = intr_disable ();
-        // if (slotsFree == 3 && currentDirection == SENDER && (num_priority_send == 0 && num_tasks_send == 0)) { //If no tasks to send
-        //         currentDirection = RECEIVER;
-        // }
-        //intr_set_level (old_level);
-
-        for (i = 0; i < num_priority_send; i++){
+        for (i = 0; i < num_priority_send; i++){ //Create a thread for all priority tasks going in the SENDER direction
                 thread_create(name, 0, senderPriorityTask, NULL);
         }
-        for (i = 0; i < num_priority_receive; i++){
+        for (i = 0; i < num_priority_receive; i++){ 
                 thread_create(name, 0, receiverPriorityTask, NULL);
 
         }
@@ -100,7 +93,6 @@ void batchScheduler(unsigned int num_tasks_send, unsigned int num_tasks_receive,
         }
         for (i = 0; i < num_tasks_send; i++){
                 thread_create(name, 0, senderTask, NULL);
-
         }
 }
 
@@ -135,7 +127,6 @@ void oneTask(task_t task) {
   leaveSlot(task);
 }
 
-
 /* task tries to get slot on the bus subsystem */
 void getSlot(task_t task)
 {
@@ -146,23 +137,13 @@ void getSlot(task_t task)
         // -IF there are free slots < 3 AND
         // -- IF task has normal priority AND highprioritylists are not empty
         // -- OR wrong direction
-        // But don't wait 
 
         while( slotsFree == 0 || (slotsFree < 3 && ((task.priority == NORMAL && (!list_empty(&waitingToGo[task.direction][HIGH].waiters) || !list_empty(&waitingToGo[1-task.direction][HIGH].waiters))) 
                 || currentDirection != task.direction)) ) { //|| (currentDirection != task.direction) && slotsFree != 3) { //If no free slots or the direction is different from your own -> wait 
-            //lock_acquire(&block); //Aquire block, or sleep until can be aquired
             cond_wait(&waitingToGo[task.direction][task.priority], &block); //Release lock and wait until signalled
         }
 
-        // while(slotsFree==0 || (slotsFree>0 && currentDirection != task.direction)) { //If no free slots or the direction is different from your own -> wait 
-        //     //lock_acquire(&block); //Aquire block, or sleep until can be aquired
-        //     cond_wait(&waitingToGo[task.direction][task.priority], &block); //Release lock and wait until signalled
-        // }
-        // while(task.priority==NORMAL && !list_empty(&waitingToGo[task.direction][HIGH].waiters)){ //Priority task goes first
-        //     cond_wait(&waitingToGo[task.direction][task.priority], &block);
-        // }
         slotsFree--;
-
 	currentDirection=task.direction;
 	lock_release(&block);
 }
@@ -170,10 +151,9 @@ void getSlot(task_t task)
 /* task processes data on the bus send/receive */
 void transferData(task_t task)
 {
-    printf("Enters bus, priority: %d, direction: %d\n", task.priority, task.direction);
+    //printf("Enters bus, priority: %d, direction: %d\n", task.priority, task.direction);
     timer_sleep(random_ulong() % 20);
-    //printf("exits");
-    printf("Exits buspriority: %d, direction: %d\n", task.priority, task.direction);
+    //printf("Exits buspriority: %d, direction: %d\n", task.priority, task.direction);
 }
 
 /* task releases the slot */
@@ -181,24 +161,16 @@ void leaveSlot(task_t task)  //CHANGED
 {
         lock_acquire(&block);
         slotsFree++;
-        // if(!list_empty(&(waitingToGo[currentDirection][HIGH].waiters))) {
-        //         cond_signal(&waitingToGo[currentDirection][HIGH], &block);
-        // } else if(!list_empty(&waitingToGo[currentDirection][NORMAL].waiters)) {
-        //         cond_signal(&waitingToGo[currentDirection][NORMAL], &block);
-        // } else if (slotsFree==BUS_CAPACITY) {
-        //         cond_broadcast(&waitingToGo[1-currentDirection][HIGH], &block);
-        //         cond_broadcast(&waitingToGo[1-currentDirection][NORMAL], &block);
-        // }
+
         if(!list_empty(&(waitingToGo[currentDirection][HIGH].waiters))) { //Any priority tasks in the current direction waiting?
                 cond_signal(&waitingToGo[currentDirection][HIGH], &block); //Signal one
         } else if(!list_empty(&waitingToGo[1-currentDirection][HIGH].waiters)) { //If priority task waiting to go in the other direction
                 if (slotsFree==BUS_CAPACITY) { //Only broadcast if bus is free
                         cond_broadcast(&waitingToGo[1-currentDirection][HIGH], &block);
                 }
-                //currentDirection=1-task.direction;
         } else if (!list_empty(&waitingToGo[currentDirection][NORMAL].waiters)) {
 
-                cond_signal(&waitingToGo[currentDirection][NORMAL], &block);
+                cond_signal(&waitingToGo[currentDirection][NORMAL], &block); //Signal one
 
         } else if (!list_empty(&waitingToGo[1-currentDirection][NORMAL].waiters)) {
 

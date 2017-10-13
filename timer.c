@@ -87,15 +87,14 @@ timer_elapsed (int64_t then)
 /* Sleeps for approximately TICKS timer ticks.  Interrupts must
    be turned on. */
 void
-timer_sleep (int64_t ticks) 
+timer_sleep (int64_t ticks)  //CHANGED
 {
   int64_t start = timer_ticks ();
 
   ASSERT (intr_get_level () == INTR_ON);
 
-  thread_set_sleep(ticks);
-  //while (timer_elapsed (start) < ticks) 
-    //thread_yield ();
+  thread_set_sleep(ticks); //Make thread sleep for ticks number of ticks
+
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -167,16 +166,14 @@ timer_print_stats (void)
 
 /* Timer interrupt handler. */
 static void
-timer_interrupt (struct intr_frame *args UNUSED)
+timer_interrupt (struct intr_frame *args UNUSED) //CHANGED
 {
   ticks++;
   thread_tick ();
 
-  //Turn interrupts off for thread_foreach
-  enum intr_level old_level = intr_disable ();
-  thread_foreach(thread_decrease_sleep, args); //CHANGED
-  //Turn interrupts on
-  intr_set_level (old_level);
+  enum intr_level old_level = intr_disable (); //Turn interrupts off for thread_foreach
+  thread_foreach(thread_decrease_sleep, args); //Decrease ticks_to_sleep for all sleeping threads
+  intr_set_level (old_level); //Turn interrupts on
 
 }
 
